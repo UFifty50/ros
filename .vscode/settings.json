@@ -1,0 +1,7 @@
+{
+    "rust-analyzer.completion.autoimport.enable": true,
+    "rust-analyzer.completion.postfix.enable": true,
+    "rust-analyzer.cargo.target": "x86_64-unknown-none",
+    "rust-analyzer.checkOnSave.allTargets": false,
+    "rust-analyzer.server.extraEnv": {"RUSTUP_TOOLCHAIN": "nightly-2023-01-04-x86_64-pc-windows-gnu"},
+}
