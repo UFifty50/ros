@@ -19,9 +19,9 @@ jobs:
     - name: Install packages
       run: sudo apt-get install -y qemu-system-x86
     - name: Install rustup
-      run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain nightly
-    - name: Install rust-nightly
-      run: rustup default nightly
+      run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain nightly; source "$HOME/.cargo/env"
+    - name: Install rust-src
+      run: rustup component add rust-src
     - name: Build
       run: cargo run --verbose
     - name: Run tests
