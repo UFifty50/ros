@@ -1,1 +1,6 @@
+.vscode
 /target
+*.lock
+*.fdd
+*.img
+*.vdi

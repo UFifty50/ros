@@ -16,7 +16,7 @@ pub fn initHeap(
 ) -> Result<(), MapToError<Size4KiB>> {
     let pageRange = {
         let heapStart = VirtAddr::new(HEAP_START as u64);
-        let heapEnd = heapStart + HEAP_SIZE - 1u64;
+        let heapEnd = heapStart + (HEAP_SIZE - 1);
         let heapStartPage = Page::containing_address(heapStart);
         let heapEndPage = Page::containing_address(heapEnd);
         Page::range_inclusive(heapStartPage, heapEndPage)

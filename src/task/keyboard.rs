@@ -12,13 +12,13 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use futures_util::stream::Stream;
 use futures_util::task::AtomicWaker;
-use crate::interrupts::CONTROLLER;
+use crate::kernel::interrupts::CONTROLLER;
 use crate::{print, println};
 
 
 lazy_static! {
     static ref KEYBOARD: Mutex<Keyboard<layouts::Uk105Key, ScancodeSet1>> = Mutex::new(
-        Keyboard::new(HandleControl::Ignore)
+        Keyboard::new(ScancodeSet1::new(), layouts::Uk105Key, HandleControl::Ignore)
     );
 
     static ref KEYBOARD_STATE: Mutex<KeyboardState> = Mutex::new(

@@ -23,13 +23,12 @@ use task::keyboard;
 
 extern crate alloc;
 
-pub mod vgaBuffer;
-pub mod serial;
-pub mod gdt;
-pub mod interrupts;
-pub mod memory;
-pub mod allocator;
+pub mod kernel;
+pub mod debug;
+pub mod mem;
 pub mod task;
+pub mod fs;
+pub mod util;
 
 #[cfg(test)]
 entry_point!(test_kMain);
