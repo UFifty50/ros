@@ -8,7 +8,6 @@
 #![feature(abi_x86_interrupt)]
 #![feature(lang_items)]
 
-#![feature(async_closure)]
 
 use core::panic::{PanicInfo, Location};
 use bootloader::{BootInfo, entry_point};
@@ -43,7 +42,6 @@ fn kMain(bootInfo: &'static BootInfo) -> ! {
 
     let mut executor = Executor::new();
     executor.spawn(Task::new(exampleTask()));
-    executor.spawn(Task::new((async || {for i in 0..10 as u128 {println!("{}", i);waitSeconds(1).await;}})()));
     executor.spawn(Task::new(secTest(10)));
     executor.spawn(Task::new(keyboard::printKeypresses()));
     executor.spawn(Task::new(tickTest(200))); // 5ms per tick
@@ -66,7 +64,7 @@ async fn tickTest(ticks: u32) {
     println!("Ticks: {} finished", ticks);
 }
 
-async fn secTest(secs: u16) {
+async fn secTest(secs: u32) {
     println!("Seconds: {} begun", secs);
     waitSeconds(secs).await;
     println!("Seconds: {} finished", secs);

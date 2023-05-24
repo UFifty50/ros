@@ -54,10 +54,12 @@ fn allocErrorHandler(layout: alloc::alloc::Layout) -> ! {
 
 #[cfg(test)]
 pub fn testInit() {
+    use crate::kernel::{interrupts, gdt};
+
     gdt::init();
     interrupts::initIDT();
     unsafe { interrupts::PICS.lock().initialize() };
-    keyboard::keyboardInitialize();
+    keyboard::keyboardInitialize().unwrap();
     x86_64::instructions::interrupts::enable();
 }
 
@@ -95,6 +97,7 @@ pub fn testPanicHandler(info: &PanicInfo) -> ! {
     exit_qemu(QemuExitCode::Failed);
     hltLoop();
 }
+
 #[cfg(test)]
 pub fn test_runner(tests: &[&dyn Testable]) {
     serial_println!("Running {} tests", tests.len());
