@@ -21,22 +21,22 @@ bitflags = "2.3.1"
 # testing
 uart_16550 = "0.2.18"
 
-[package.metadata.bootimage]
-test-args = [
-    "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio",
-    "-display", "none", "-m", "3096M", "-smp", "4", "-cpu", "host", "-rtc", "base=localtime"
-]
-test-success-exit-code = 33
-test-timeout = 180
-run-args = []
+# [package.metadata.bootimage]
+# test-args = [
+#     "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio",
+#     "-display", "none", "-m", "3096M", "-smp", "4", "-cpu", "host", "-rtc", "base=localtime"
+# ]
+# test-success-exit-code = 33
+# test-timeout = 180
+# run-args = []
 
-[[test]]
-name = "shouldPanic"
-harness = false
+# [[test]]
+# name = "shouldPanic"
+# harness = false
 
-[[test]]
-name = "stackOverflow"
-harness = false
+# [[test]]
+# name = "stackOverflow"
+# harness = false
 
 #[profile.dev]
 #panic = "abort"

@@ -3,8 +3,6 @@ use core::ops::Add;
 use core::cmp::Ordering;
 use core::sync::atomic::Ordering as AtomicOrdering;
 
-use futures_util::Stream;
-
 use crate::println;
 
 use crate::kernel::{interrupts::TICK_COUNTER, binIO};
@@ -205,7 +203,8 @@ impl Time {
 }
 
 pub async fn waitSeconds(seconds: u32) {
-    waitTicks(seconds * 200).await;
+    println!("{} ticks", seconds * 20);
+    waitTicks(seconds * 20).await;
 }
 
 pub async fn waitTicks(ticks: u32){
