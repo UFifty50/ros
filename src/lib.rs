@@ -7,10 +7,10 @@
 #![feature(const_mut_refs)]
 #![feature(abi_x86_interrupt)]
 #![feature(lang_items)]
-// #![cfg_attr(test, no_main)]
-// #![feature(custom_test_frameworks)]
-// #![test_runner(crate::test_runner)]
-// #![reexport_test_harness_main = "test_main"]
+#![cfg_attr(test, no_main)]
+#![feature(custom_test_frameworks)]
+#![test_runner(crate::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
 // use core::panic::PanicInfo;
 
@@ -20,14 +20,17 @@
 // #[cfg(test)]
 // use task::keyboard;
 
-
 extern crate alloc;
 
 pub mod debug;
 pub mod fs;
 pub mod kernel;
 pub mod mem;
-pub mod task;
+pub mod multitasking {
+    pub mod cooperative;
+    pub mod preemptive;
+}
+pub mod tasks;
 pub mod util;
 
 // #[cfg(test)]
@@ -63,33 +66,37 @@ pub mod util;
 //     x86_64::instructions::interrupts::enable();
 // }
 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// #[repr(u32)]
-// pub enum QemuExitCode {
-//     Success = 0x10,
-//     Failed = 0x11,
-// }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum QemuExitCode {
+    Success = 0x10,
+    Failed = 0x11,
+}
 
-// pub fn exit_qemu(exit_code: QemuExitCode) {
-//     use x86_64::instructions::port::Port;
+pub fn exit_qemu(exit_code: QemuExitCode) {
+    use x86_64::instructions::port::Port;
+    unsafe {
+        let mut port = Port::new(0xf4);
+        port.write(exit_code as u32);
+    }
+}
 
-//     unsafe {
-//         let mut port = Port::new(0xf4);
-//         port.write(exit_code as u32);
-//     }
-// }
+pub trait Testable {
+    fn run(&self);
+}
 
-// pub trait Testable {
-//     fn run(&self);
-// }
+impl<T> Testable for T
+where
+    T: Fn(),
+{
+    fn run(&self) {
+        serial_print!("{}...\t", core::any::type_name::<T>());
 
-// impl<T> Testable for T where T: Fn(), {
-//     fn run(&self) {
-//         serial_print!("{}...\t", core::any::type_name::<T>());
-//         self();
-//         serial_println!("[ok]");
-//     }
-// }
+        self();
+
+        serial_println!("[ok]");
+    }
+}
 
 // pub fn testPanicHandler(info: &PanicInfo) -> ! {
 //     serial_println!("[failed]\n");
@@ -98,15 +105,15 @@ pub mod util;
 //     hltLoop();
 // }
 
-// #[cfg(test)]
-// pub fn test_runner(tests: &[&dyn Testable]) {
-//     serial_println!("Running {} tests", tests.len());
-//     for test in tests {
-//         test.run();
-//     }
+#[cfg(test)]
+pub fn test_runner(tests: &[&dyn Testable]) {
+    serial_println!("Running {} tests", tests.len());
+    for test in tests {
+        test.run();
+    }
 
-//     exit_qemu(QemuExitCode::Success);
-// }
+    exit_qemu(QemuExitCode::Success);
+}
 
 // #[test_case]
 // fn test_breakpoint_exception() {

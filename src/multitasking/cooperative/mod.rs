@@ -1,12 +1,11 @@
-use core::sync::atomic::{AtomicU64, Ordering};
-use core::task::{Context, Poll};
+use alloc::boxed::Box;
 use core::future::Future;
 use core::pin::Pin;
-use alloc::boxed::Box;
+use core::sync::atomic::{AtomicU64, Ordering};
+use core::task::{Context, Poll};
 
 pub mod executor;
 pub mod simpleExecutor;
-pub mod keyboard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TaskId(u64);
