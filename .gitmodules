@@ -1,0 +1,3 @@
+[submodule "linked-list-allocator"]
+	path = linked-list-allocator
+	url = https://github.com/UFifty50/linked-list-allocator.git

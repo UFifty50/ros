@@ -1,7 +1,7 @@
-use crate::multitasking::preemptive::ThreadID;
 use crate::mem::stack;
-use x86_64::structures::paging::{FrameAllocator, Mapper, Size4KiB};
+use crate::multitasking::preemptive::ThreadID;
 use x86_64::VirtAddr;
+use x86_64::structures::paging::{FrameAllocator, Mapper, Size4KiB};
 
 use super::SCHEDULER;
 
@@ -11,7 +11,7 @@ pub struct Thread {
     id: ThreadID,
     pub(super) quantum: u64,
     pub(super) done: bool,
-//    pub(super) stackBounds: StackBounds,
+    //    pub(super) stackBounds: StackBounds,
     pub(super) stackPointer: VirtAddr,
     pub(super) instructionPointer: VirtAddr,
     pub(super) function: extern "C" fn(),
@@ -34,11 +34,11 @@ impl Thread {
             id: ThreadID::new(),
             quantum: 20,
             done: false,
-       //     stackBounds: sb.unwrap(),
+            //     stackBounds: sb.unwrap(),
             stackPointer: sb.unwrap().start,
             instructionPointer: VirtAddr::new(func as *const () as u64),
             function: func,
-      //      registers: [0; 23],
+            //      registers: [0; 23],
         }
     }
 

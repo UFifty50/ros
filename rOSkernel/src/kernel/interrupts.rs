@@ -1,13 +1,15 @@
-use core::sync::atomic::{AtomicU32, Ordering};
-
 use lazy_static::lazy_static;
-use pic8259::ChainedPics;
+// use pic8259::ChainedPics;
 use ps2::Controller;
 use spin::Mutex;
 use x86_64::registers::control::Cr2;
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
-use x86_64::PrivilegeLevel;
+use x86_64::structures::idt::{
+    HandlerFuncType, HandlerFuncWithErrCode, InterruptDescriptorTable, InterruptStackFrame,
+    PageFaultErrorCode,
+};
+use x86_64::{PrivilegeLevel, VirtAddr};
 
+use crate::kernel::kernelContext;
 use crate::kernel::{binIO, gdt, RTC};
 use crate::multitasking::preemptive::SCHEDULER;
 
@@ -33,7 +35,9 @@ lazy_static! {
             .set_privilege_level(PrivilegeLevel::Ring3);
         unsafe {
             idt.double_fault
-                .set_handler_fn(doubleFaultHandler)
+                .set_handler_addr(HandlerFuncType::to_virt_addr(
+                    doubleFaultHandler as HandlerFuncWithErrCode,
+                ))
                 .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX as u16);
 
             idt.page_fault
@@ -51,22 +55,21 @@ lazy_static! {
         unsafe { Mutex::new(Controller::with_timeout(50000)) };
 }
 
-pub const PIC_1_OFFSET: u8 = 32;
-pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
+// pub const PIC_1_OFFSET: u8 = 32;
+// pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
+pub const APIC_BASE: u8 = 0x1B;
 
-pub static PICS: Mutex<ChainedPics> =
-    Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
-
-pub(crate) static TICK_COUNTER: AtomicU32 = AtomicU32::new(0);
+//pub static PICS: Mutex<ChainedPics> = Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum InterruptIndex {
-    Timer = PIC_1_OFFSET,
+    Spurious = APIC_BASE,
     Keyboard,
-    Floppy = PIC_1_OFFSET + 6,
-    RealTimeClock = PIC_2_OFFSET,
-    SystemCall = 0xAA - PIC_1_OFFSET,
+    Timer,
+    Floppy = APIC_BASE + 6,
+    RealTimeClock = APIC_BASE + 8,
+    SystemCall = 0xAA - APIC_BASE,
 }
 
 pub fn initIDT() {
@@ -104,7 +107,8 @@ extern "x86-interrupt" fn pageFaultHandler(
 extern "x86-interrupt" fn GPFaultHandler(stackFrame: InterruptStackFrame, errCode: u64) {
     log::error!(
         "EXCEPTION: GENERAL PROTECTION FAULT\n{:#?}\nError Code: {}",
-        stackFrame, errCode
+        stackFrame,
+        errCode
     );
     loop {
         x86_64::instructions::hlt();
@@ -114,7 +118,8 @@ extern "x86-interrupt" fn GPFaultHandler(stackFrame: InterruptStackFrame, errCod
 extern "x86-interrupt" fn segmentNotPresentHandler(stackFrame: InterruptStackFrame, errCode: u64) {
     log::error!(
         "EXCEPTION: SEGMENT NOT PRESENT\n{:#?}\nError Code: {}",
-        stackFrame, errCode
+        stackFrame,
+        errCode
     );
     loop {
         x86_64::instructions::hlt();
@@ -124,7 +129,8 @@ extern "x86-interrupt" fn segmentNotPresentHandler(stackFrame: InterruptStackFra
 extern "x86-interrupt" fn stackSegmentFaultHandler(stackFrame: InterruptStackFrame, errCode: u64) {
     log::error!(
         "EXCEPTION: STACK SEGMENT FAULT\n{:#?}\nError Code: {}",
-        stackFrame, errCode
+        stackFrame,
+        errCode
     );
     loop {
         x86_64::instructions::hlt();
@@ -139,17 +145,18 @@ extern "x86-interrupt" fn invalidTSSHandler(stackFrame: InterruptStackFrame, _er
 }
 
 extern "x86-interrupt" fn timerInterruptHandler(_stackFrame: InterruptStackFrame) {
-    log::trace!(".");
-    TICK_COUNTER.fetch_add(1, Ordering::Relaxed);
-    
+    log::info!(".");
+    //TICK_COUNTER.fetch_add(1, Ordering::Relaxed);
+
     x86_64::instructions::interrupts::disable();
     SCHEDULER.lock().switchTask();
     x86_64::instructions::interrupts::enable();
 
-    unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Timer as u8);
-    }
+    kernelContext()
+        .apic
+        .get()
+        .expect("APIC not initialized")
+        .notify_end_of_interrupt();
 }
 
 extern "x86-interrupt" fn keyboardInterruptHandler(_stackFrame: InterruptStackFrame) {
@@ -164,19 +171,21 @@ extern "x86-interrupt" fn keyboardInterruptHandler(_stackFrame: InterruptStackFr
         crate::tasks::keyboard::addScancode(scancode);
     }
 
-    unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Keyboard as u8);
-    }
+    kernelContext()
+        .apic
+        .get()
+        .expect("APIC not initialized")
+        .notify_end_of_interrupt();
 }
 
 extern "x86-interrupt" fn floppyInterruptHandler(_stackFrame: InterruptStackFrame) {
     log::trace!("F");
     // TODO: call fs::floppy::<methods to read/write floppy>
-    unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Floppy as u8);
-    }
+    kernelContext()
+        .apic
+        .get()
+        .expect("APIC not initialized")
+        .notify_end_of_interrupt();
 }
 
 extern "x86-interrupt" fn realTimeClockInterruptHandler(_stackFrame: InterruptStackFrame) {
@@ -184,12 +193,15 @@ extern "x86-interrupt" fn realTimeClockInterruptHandler(_stackFrame: InterruptSt
         binIO::out8(0x70, 0x0C);
         binIO::in8(0x71);
         RTC::readRTC();
-
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::RealTimeClock as u8);
     }
+
+    kernelContext()
+        .apic
+        .get()
+        .expect("APIC not initialized")
+        .notify_end_of_interrupt();
 }
 
-extern "x86-interrupt" fn doubleFaultHandler(stackFrame: InterruptStackFrame, _errCode: u64) -> ! {
+extern "x86-interrupt" fn doubleFaultHandler(stackFrame: InterruptStackFrame, _errCode: u64) {
     panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stackFrame);
 }

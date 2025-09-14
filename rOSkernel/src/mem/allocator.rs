@@ -1,38 +1,52 @@
-use linked_list_allocator::LockedHeap;
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
-use x86_64::VirtAddr;
+use x86_64::{structures::paging::PageSize, VirtAddr};
 
-pub const HEAP_START: *mut u8 = 0x4444_4444_0000 as *mut u8;
-pub const HEAP_SIZE: u64 = 100 * 1024;
+/// A multi-heap allocator that tracks the next free virtual address to map.
+#[derive(Debug)]
+pub struct MultiHeapAllocator {
+    next: u64,
+}
 
-#[global_allocator]
-pub(crate) static ALLOCATOR: LockedHeap = LockedHeap::empty();
-
-pub fn initHeap(
-    mapper: &mut impl Mapper<Size4KiB>,
-    frameAllocator: &mut impl FrameAllocator<Size4KiB>,
-) -> Result<(), MapToError<Size4KiB>> {
-    let pageRange = {
-        let heapStart = VirtAddr::new(HEAP_START as u64);
-        let heapEnd = heapStart + (HEAP_SIZE - 1);
-        let heapStartPage = Page::containing_address(heapStart);
-        let heapEndPage = Page::containing_address(heapEnd);
-        Page::range_inclusive(heapStartPage, heapEndPage)
-    };
-
-    for page in pageRange {
-        let frame = frameAllocator
-            .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
-        let flags =
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE;
-        unsafe { mapper.map_to(page, frame, flags, frameAllocator)?.flush() };
+impl MultiHeapAllocator {
+    /// Create a new heap allocator, starting just after the kernel end symbol.
+    pub fn new() -> Self {
+        unsafe extern "C" {
+            static _end: u8;
+        }
+        let kernel_end = unsafe { &_end as *const u8 as u64 };
+        let align = Size4KiB::SIZE;
+        let start = (kernel_end + align - 1) & !(align - 1);
+        MultiHeapAllocator { next: start }
     }
 
-    unsafe {
-        ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE as usize);
+    /// Map and reserve a heap region of `size` bytes, returning its start address.
+    pub fn init_heap(
+        &mut self,
+        mapper: &mut impl Mapper<Size4KiB>,
+        frame_allocator: &mut impl FrameAllocator<Size4KiB>,
+        size: u64,
+    ) -> Result<(VirtAddr, u64), MapToError<Size4KiB>> {
+        let heap_start = VirtAddr::new(self.next);
+        let heap_end = heap_start + (size - 1);
+        let page_range = {
+            let start_page = Page::containing_address(heap_start);
+            let end_page = Page::containing_address(heap_end);
+            Page::range_inclusive(start_page, end_page)
+        };
+        for page in page_range {
+            let frame = frame_allocator
+                .allocate_frame()
+                .ok_or(MapToError::FrameAllocationFailed)?;
+            let flags = PageTableFlags::PRESENT
+                | PageTableFlags::WRITABLE
+                | PageTableFlags::USER_ACCESSIBLE;
+            unsafe { mapper.map_to(page, frame, flags, frame_allocator)?.flush() };
+        }
+        // advance next to the next aligned address after this heap
+        let align = Size4KiB::SIZE;
+        let next = (heap_end.as_u64() + 1 + align - 1) & !(align - 1);
+        self.next = next;
+        Ok((heap_start, size))
     }
-
-    Ok(())
 }

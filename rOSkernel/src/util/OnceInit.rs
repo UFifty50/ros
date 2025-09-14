@@ -51,6 +51,20 @@ impl<T> OnceInit<T> {
     }
 }
 
+impl<T: Copy> OnceInit<T> {
+    pub fn get_copy(&self) -> Option<T> {
+        let guard = self.inner.lock();
+        guard.as_ref().copied()
+    }
+}
+
+impl<T: Clone> OnceInit<T> {
+    pub fn get_clone(&self) -> Option<T> {
+        let guard = self.inner.lock();
+        guard.as_ref().cloned()
+    }
+}
+
 /// A mutable guard that provides mutable access to the inner T.
 /// Dropping the guard unlocks the inner mutex.
 pub struct OnceMutGuard<'a, T> {

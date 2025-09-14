@@ -1,11 +1,9 @@
 use core::ops::Add;
 
 use core::cmp::Ordering;
-use core::sync::atomic::Ordering as AtomicOrdering;
 use spin::Mutex;
 
-use crate::kernel::{interrupts::TICK_COUNTER, binIO};
-
+use crate::kernel::binIO;
 
 static TIME: Mutex<Time> = Mutex::new(Time::new());
 static MONTHS: [u8; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -106,14 +104,14 @@ impl PartialEq for DateTime {
             self.day,
             self.hour,
             self.minute,
-            self.second
+            self.second,
         ) == (
             other.year,
             other.month,
             other.day,
             other.hour,
             other.minute,
-            other.second
+            other.second,
         )
     }
 }
@@ -122,21 +120,24 @@ impl Eq for DateTime {}
 
 impl PartialOrd for DateTime {
     fn partial_cmp(&self, other: &DateTime) -> Option<Ordering> {
-        Some((
-            self.year,
-            self.month,
-            self.day,
-            self.hour,
-            self.minute,
-            self.second
-        ).cmp(&(
-            other.year,
-            other.month,
-            other.day,
-            other.hour,
-            other.minute,
-            other.second
-        )))
+        Some(
+            (
+                self.year,
+                self.month,
+                self.day,
+                self.hour,
+                self.minute,
+                self.second,
+            )
+                .cmp(&(
+                    other.year,
+                    other.month,
+                    other.day,
+                    other.hour,
+                    other.minute,
+                    other.second,
+                )),
+        )
     }
 }
 
@@ -148,15 +149,16 @@ impl Ord for DateTime {
             self.day,
             self.hour,
             self.minute,
-            self.second
-        ).cmp(&(
-            other.year,
-            other.month,
-            other.day,
-            other.hour,
-            other.minute,
-            other.second
-        ))
+            self.second,
+        )
+            .cmp(&(
+                other.year,
+                other.month,
+                other.day,
+                other.hour,
+                other.minute,
+                other.second,
+            ))
     }
 }
 
@@ -176,7 +178,7 @@ impl Time {
 
     fn update(&mut self) {
         unsafe {
-          // if updateInProgress() { return }
+            // if updateInProgress() { return }
             self.prevSecond = self.second;
 
             self.second = getRTC(0x00);
@@ -185,7 +187,6 @@ impl Time {
             self.day = getRTC(0x07);
             self.month = getRTC(0x08);
             self.year = getRTC(0x09);
-            
         }
     }
 
@@ -196,7 +197,7 @@ impl Time {
             self.hour,
             self.day,
             self.month,
-            self.year
+            self.year,
         )
     }
 }
@@ -206,44 +207,46 @@ pub async fn waitSeconds(seconds: u32) {
     waitTicks(seconds * 20).await;
 }
 
-pub async fn waitTicks(ticks: u32){
-    let now = TICK_COUNTER.load(AtomicOrdering::Relaxed);
-    let target = now + ticks;
-    
-    loop {
-        let now = TICK_COUNTER.load(AtomicOrdering::Relaxed);
-        if now >= target {
-            break;
-        }
+pub async fn waitTicks(_ticks: u32) {
+    // let now = TICK_COUNTER.load(AtomicOrdering::Relaxed);
+    // let target = now + ticks;
+    //
+    // loop {
+    //     let now = TICK_COUNTER.load(AtomicOrdering::Relaxed);
+    //     if now >= target {
+    //         break;
+    //     }
+    // }
+}
+
+unsafe fn updateInProgress() -> bool {
+    unsafe {
+        // disable NMI; get status register A
+        binIO::out8(0x70, (0x1 << 7) | 0x0A);
+        return binIO::in8(0x71) & 0x80 == 0;
     }
 }
 
+unsafe fn getRTC(port: u8) -> u8 {
+    unsafe {
+        // check format
+        binIO::out8(0x70, (0x1 << 7) | 0x0B);
+        let format = binIO::in8(0x71);
 
-unsafe fn updateInProgress() -> bool { unsafe {
-    // disable NMI; get status register A
-    binIO::out8(0x70, (0x1 << 7) | 0x0A);
-    return binIO::in8(0x71) & 0x80 == 0;
-}}
+        binIO::out8(0x70, (0x1 << 7) | port);
+        let value = binIO::in8(0x71);
 
-unsafe fn getRTC(port: u8) -> u8 { unsafe {
-    // check format
-    binIO::out8(0x70, (0x1 << 7) | 0x0B);
-    let format = binIO::in8(0x71);
+        // TODO: check 12/24 hr
 
-    
-    binIO::out8(0x70, (0x1 << 7) | port);
-    let value = binIO::in8(0x71);
+        // BCD
+        if format & 0x04 == 0 {
+            return ((value & 0xF0) >> 1) + ((value & 0xF0) >> 3) + (value & 0xf);
+        }
 
-    // TODO: check 12/24 hr
-
-    // BCD
-    if format & 0x04 == 0 {
-        return ((value & 0xF0) >> 1) + ((value & 0xF0) >> 3) + (value & 0xf);
+        // binary
+        return value;
     }
-
-    // binary
-    return value;
-}}
+}
 
 pub fn initRTC() {
     log::info!("RTC: Initializing...");
@@ -258,19 +261,28 @@ pub fn initRTC() {
 pub unsafe fn readRTC() {
     TIME.lock().update();
     let time = TIME.lock();
-    
-    if time.second == time.prevSecond { return }
+
+    if time.second == time.prevSecond {
+        return;
+    }
 
     //    century = binIO::in8(ADDRESS);  preferably read from ACPI
     // println!("{}", getDateTime("%h:%m:%s %D-%M-%Y"));
-    log::info!("{}:{}:{} {}-{}-{}", time.hour, time.minute, time.second, time.day, time.month, time.year);
+    log::info!(
+        "{}:{}:{} {}-{}-{}",
+        time.hour,
+        time.minute,
+        time.second,
+        time.day,
+        time.month,
+        time.year
+    );
 }
-
 
 // pub fn getDateTime(format: &str) -> String {
 //     let mut result = String::new();
 //     let mut i = 0;
-    
+
 //     while i < format.len() {
 //         let mut c = format.chars().nth(i).unwrap();
 //         if c == '%' {

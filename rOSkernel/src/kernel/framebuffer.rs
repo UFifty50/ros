@@ -1,6 +1,5 @@
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use core::ops::Add;
-use crate::util::OnceInit::OnceInit;
 use noto_sans_mono_bitmap::{
     FontWeight, RasterHeight, RasterizedChar, get_raster, get_raster_width,
 };
@@ -12,8 +11,6 @@ const CHAR_RASTER_HEIGHT: RasterHeight = RasterHeight::Size16;
 const CHAR_RASTER_WIDTH: usize = get_raster_width(FontWeight::Regular, CHAR_RASTER_HEIGHT);
 const BACKUP_CHAR: char = '�';
 const FONT_WEIGHT: FontWeight = FontWeight::Regular;
-
-pub static FRAMEBUFFER: OnceInit<FrameBufferEditor> = OnceInit::new();
 
 fn getRaster(c: char) -> RasterizedChar {
     fn get(c: char) -> Option<RasterizedChar> {
@@ -65,10 +62,11 @@ pub struct PixelColour {
     pub b: u8,
 }
 
+#[derive(Debug)]
 pub struct FrameBufferEditor {
     framebuffer: &'static mut FrameBuffer,
     info: FrameBufferInfo,
-    position: Position
+    position: Position,
 }
 
 impl FrameBufferEditor {
@@ -76,15 +74,21 @@ impl FrameBufferEditor {
         let mut fbWriter = Self {
             framebuffer,
             info,
-            position: Position { x: 0, y: 0 }
+            position: Position { x: 0, y: 0 },
         };
         fbWriter.clear();
         fbWriter
     }
 
     pub fn clear(&mut self) {
-        self.position = Position { x: BORDER_PADDING, y: BORDER_PADDING };
-        self.framebuffer.buffer_mut().iter_mut().for_each(|byte| *byte = 0);
+        self.position = Position {
+            x: BORDER_PADDING,
+            y: BORDER_PADDING,
+        };
+        self.framebuffer
+            .buffer_mut()
+            .iter_mut()
+            .for_each(|byte| *byte = 0);
     }
 
     pub fn width(&self) -> usize {
@@ -94,7 +98,7 @@ impl FrameBufferEditor {
     pub fn height(&self) -> usize {
         self.info.height
     }
-    
+
     pub fn writePixel(&mut self, position: Position, color: PixelColour) {
         // calculate offset to first byte of pixel
         let byte_offset = {
@@ -127,62 +131,62 @@ impl FrameBufferEditor {
             other => panic!("unknown pixel format {other:?}"),
         }
     }
-    
+
     /*
-    fn newline(&mut self) {
-        self.carriageReturn();
-        self.lineFeed();
-    }
+        fn newline(&mut self) {
+            self.carriageReturn();
+            self.lineFeed();
+        }
 
-    fn lineFeed(&mut self) {
-        self.position.y += CHAR_RASTER_HEIGHT.val() + LINE_SPACING;
-    }
+        fn lineFeed(&mut self) {
+            self.position.y += CHAR_RASTER_HEIGHT.val() + LINE_SPACING;
+        }
 
-    fn carriageReturn(&mut self) {
-        self.position.x = BORDER_PADDING;
-    }
-    
-    fn writeChar(&mut self, c: char) {
-        match c {
-            '\n' => self.lineFeed(),
-            '\r' => self.carriageReturn(),
-            c => {
-                if self.position.x + CHAR_RASTER_WIDTH >= self.width() {
-                    self.newline();
-                }
+        fn carriageReturn(&mut self) {
+            self.position.x = BORDER_PADDING;
+        }
 
-                if self.position.y + CHAR_RASTER_HEIGHT.val() + BORDER_PADDING >= self.height() {
-                    // Scroll up
-                    let scroll_offset = CHAR_RASTER_HEIGHT.val() + LINE_SPACING + BORDER_PADDING;
-                    let scroll_size = self.info.stride * (self.height() - scroll_offset);
-                    let copy_size =
-                        self.info.stride * (self.height() - scroll_offset - BORDER_PADDING);
-                    let copy_src = unsafe {
-                        self.framebuffer.buffer_mut()
-                            .as_ptr()
-                            .add(scroll_offset * self.info.stride)
-                    };
-                    let copy_dst = self.framebuffer.buffer_mut().as_mut_ptr();
-                    unsafe {
-                        ptr::copy(copy_src, copy_dst, copy_size);
-                        ptr::write_bytes(copy_dst.add(copy_size), 0, scroll_size - copy_size);
+        fn writeChar(&mut self, c: char) {
+            match c {
+                '\n' => self.lineFeed(),
+                '\r' => self.carriageReturn(),
+                c => {
+                    if self.position.x + CHAR_RASTER_WIDTH >= self.width() {
+                        self.newline();
                     }
-                    self.position.y -= scroll_offset;
-                }
-                self.renderChar(getRaster(c));
-            }
-        }
-    }
 
-    fn renderChar(&mut self, renderedChar: RasterizedChar) {
-        for (y, row) in renderedChar.raster().iter().enumerate() {
-            for (x, byte) in row.iter().enumerate() {
-                self.writePixel(self.position + Position {x, y}, PixelColour{r: *byte, g: *byte, b: *byte});
+                    if self.position.y + CHAR_RASTER_HEIGHT.val() + BORDER_PADDING >= self.height() {
+                        // Scroll up
+                        let scroll_offset = CHAR_RASTER_HEIGHT.val() + LINE_SPACING + BORDER_PADDING;
+                        let scroll_size = self.info.stride * (self.height() - scroll_offset);
+                        let copy_size =
+                            self.info.stride * (self.height() - scroll_offset - BORDER_PADDING);
+                        let copy_src = unsafe {
+                            self.framebuffer.buffer_mut()
+                                .as_ptr()
+                                .add(scroll_offset * self.info.stride)
+                        };
+                        let copy_dst = self.framebuffer.buffer_mut().as_mut_ptr();
+                        unsafe {
+                            ptr::copy(copy_src, copy_dst, copy_size);
+                            ptr::write_bytes(copy_dst.add(copy_size), 0, scroll_size - copy_size);
+                        }
+                        self.position.y -= scroll_offset;
+                    }
+                    self.renderChar(getRaster(c));
+                }
             }
         }
-        self.position.x += renderedChar.width() + LETTER_SPACING;
-    }
-*/
+
+        fn renderChar(&mut self, renderedChar: RasterizedChar) {
+            for (y, row) in renderedChar.raster().iter().enumerate() {
+                for (x, byte) in row.iter().enumerate() {
+                    self.writePixel(self.position + Position {x, y}, PixelColour{r: *byte, g: *byte, b: *byte});
+                }
+            }
+            self.position.x += renderedChar.width() + LETTER_SPACING;
+        }
+    */
 }
 
 /*

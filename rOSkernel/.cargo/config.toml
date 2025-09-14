@@ -4,6 +4,4 @@ bindeps = true
 
 [build]
 target = ".cargo/x86_64-rust_OS.json"
-
-# [target.'cfg(target_os = "none")']
-# runner = "bootimage runner"
+rustflags = ["--cfg", "procmacro2_semver_exempt", "--cfg", "super_unstable"]

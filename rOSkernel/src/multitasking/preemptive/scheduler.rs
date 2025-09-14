@@ -1,4 +1,4 @@
-use super::{thread::Thread, SCHEDULER};
+use super::{SCHEDULER, thread::Thread};
 use alloc::vec::Vec;
 use x86_64::VirtAddr;
 
@@ -37,7 +37,7 @@ impl Scheduler {
         }
 
         self.threads[self.currentThreadIdx.unwrap()].quantum -= 1;
-        
+
         if self.threads[self.currentThreadIdx.unwrap()].quantum > 0 {
             return;
         }
@@ -81,5 +81,6 @@ pub unsafe extern "C" fn addPausedThread(oldStackPointer: u64, oldInstructionPoi
     log::info!("oldStackPointer: 0x{:x}", oldStackPointer);
     let previousThreadIdx = SCHEDULER.lock().previousThreadIdx.unwrap();
     SCHEDULER.lock().threads[previousThreadIdx].stackPointer = VirtAddr::new(oldStackPointer);
-    SCHEDULER.lock().threads[previousThreadIdx].instructionPointer = VirtAddr::new(oldInstructionPointer);
+    SCHEDULER.lock().threads[previousThreadIdx].instructionPointer =
+        VirtAddr::new(oldInstructionPointer);
 }

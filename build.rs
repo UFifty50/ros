@@ -1,21 +1,23 @@
-use bootloader::DiskImageBuilder;
+#![allow(non_snake_case)]
+
 use std::{env, path::PathBuf};
 
 fn main() {
     // set by cargo for the kernel artifact dependency
-    let kernel_path = env::var("CARGO_BIN_FILE_ROSKERNEL").unwrap();
-    let disk_builder = DiskImageBuilder::new(PathBuf::from(kernel_path));
+    let kernelPath = PathBuf::from(env::var("CARGO_BIN_FILE_ROSKERNEL").unwrap());
+    let outDir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    // specify output paths
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let uefi_path = out_dir.join("rust-os-uefi.img");
-    let bios_path = out_dir.join("rust-os-bios.img");
+    let biosPath = outDir.join("bios.img");
+    bootloader::BiosBoot::new(&kernelPath)
+        .create_disk_image(&biosPath)
+        .expect("Failed to create BIOS disk image");
 
-    // create the disk images
-    disk_builder.create_uefi_image(&uefi_path).unwrap();
-    disk_builder.create_bios_image(&bios_path).unwrap();
+    let uefiPath = outDir.join("uefi.img");
+    bootloader::UefiBoot::new(&kernelPath)
+        .create_disk_image(&uefiPath)
+        .expect("Failed to create UEFI disk image");
 
     // pass the disk image paths via environment variables
-    println!("cargo:rustc-env=UEFI_IMAGE={}", uefi_path.display());
-    println!("cargo:rustc-env=BIOS_IMAGE={}", bios_path.display());
+    println!("cargo:rustc-env=UEFI_IMAGE={}", uefiPath.display());
+    println!("cargo:rustc-env=BIOS_IMAGE={}", biosPath.display());
 }

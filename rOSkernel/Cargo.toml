@@ -9,7 +9,8 @@ test = false
 bench = false
 
 [dependencies]
-bootloader_api =  "0.11.9"
+# constformat = { path = "../constformat" }
+bootloader_api = "0.11.9"
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 futures-util = { version = "0.3.28", default-features = false, features = [
     "alloc",
@@ -17,17 +18,22 @@ futures-util = { version = "0.3.28", default-features = false, features = [
 crossbeam-queue = { version = "0.3.8", default-features = false, features = [
     "alloc",
 ] }
-conquer-once = { version = "0.4.0", default-features = false }
+# conquer-once = { version = "0.4.0", default-features = false }
+once_cell = { version = "1.21.3", default-features = false, features = ["alloc", "critical-section"] }
+critical-section = "1.2.0"
 bootloader-x86_64-common = "0.11.10"
-log = { version = "0.4.17", default-features = false }
+log = { version = "0.4.27", default-features = false }
 noto-sans-mono-bitmap = "0.3.1"
-linked_list_allocator = "0.10.5"
-spin = "0.9.8"
-x86_64 = "0.15.2"
-pic8259 = "0.11.0"
+linked_list_allocator = { path = "../linked-list-allocator", features = ["use_spin", "alloc_ref"] }
+# spin = "0.10.0"
+x86_64 = { version = "0.15.2", features = ["default", "nightly"] }
+# pic8259 = "0.11.0"
+acpi = { version = "5.2.0", default-features = false, features = ["alloc", "allocator_api"] }
+aml = "0.16.4"
 pc-keyboard = "0.8.0"
 ps2 = "0.2.0"
 uart_16550 = "0.3.2"
+spin = "0.10.0"
 
 # [package.metadata.bootimage]
 # test-args = [

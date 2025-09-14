@@ -1,2 +1,5 @@
 [unstable]
 bindeps = true
+
+[build]
+rustflags = ["--cfg", "procmacro2_semver_exempt", "--cfg", "super_unstable"]

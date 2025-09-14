@@ -5,11 +5,13 @@ edition = "2024"
 default-run = "rust-OS"
 
 [workspace]
-members = ["rOSkernel"]
+members = ["constformat", "rOSkernel", "linked-list-allocator"]
 
 [dependencies]
-ovmf-prebuilt = "0.2.1"
+ovmf-prebuilt = "0.2.2"
+fatfs = "0.3.6"
+gpt = "4.1.0"
 
 [build-dependencies]
 rOSkernel = { path = "rOSkernel", artifact = "bin", target = "x86_64-unknown-none" }
-bootloader = "0.11.9"
+bootloader = "0.11.10"

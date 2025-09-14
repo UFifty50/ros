@@ -8,6 +8,8 @@
 //#![feature(lang_items)]
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
+#![feature(allocator_api)]
+#![feature(non_null_from_ref)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
@@ -21,6 +23,9 @@
 
 extern crate alloc;
 
+use critical_section::RawRestoreState;
+
+// pub mod acpi;
 pub mod debug;
 pub mod fs;
 pub mod kernel;
@@ -31,6 +36,19 @@ pub mod multitasking {
 }
 pub mod tasks;
 pub mod util;
+
+struct CriticalSection;
+critical_section::set_impl!(CriticalSection);
+
+unsafe impl critical_section::Impl for CriticalSection {
+    unsafe fn acquire() -> RawRestoreState {
+        x86_64::instructions::interrupts::disable();
+    }
+
+    unsafe fn release(_: RawRestoreState) {
+        x86_64::instructions::interrupts::enable();
+    }
+}
 
 // #[cfg(test)]
 // entry_point!(test_kMain);

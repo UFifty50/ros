@@ -1,4 +1,10 @@
-use std::{env, fs};
+#![allow(non_snake_case)]
+
+extern crate fatfs;
+extern crate gpt;
+
+use std::env;
+use std::fs;
 
 fn main() {
     let current_exe = env::current_exe().unwrap();

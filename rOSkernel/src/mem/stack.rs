@@ -1,6 +1,6 @@
 use x86_64::{
-    structures::paging::{mapper, FrameAllocator, Mapper, Page, Size4KiB},
     VirtAddr,
+    structures::paging::{FrameAllocator, Mapper, Page, Size4KiB, mapper},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
