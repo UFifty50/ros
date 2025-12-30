@@ -6,18 +6,36 @@ use x86_64::structures::tss::TaskStateSegment;
 
 const STACK_SIZE: usize = 4096 * 5;
 pub const DOUBLE_FAULT_IST_INDEX: usize = 0;
+pub const TIMER_INTERRUPT_IST_INDEX: usize = 1;
 pub const PAGE_FAULT_IST_INDEX: usize = 2;
 pub const GENERAL_FAULT_IST_INDEX: usize = 3;
 
-pub static DOUBLE_FAULT_STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-pub static PAGE_FAULT_STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-pub static GENERAL_FAULT_STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+// Wrapper to ensure 16-byte stack alignment (required by x86_64 ABI)
+#[repr(C, align(16))]
+pub struct AlignedStack([u8; STACK_SIZE]);
+
+impl AlignedStack {
+    const fn new() -> Self {
+        AlignedStack([0; STACK_SIZE])
+    }
+}
+
+// Use static mut to ensure these go into writable memory (.bss), not .rodata
+pub static mut DOUBLE_FAULT_STACK: AlignedStack = AlignedStack::new();
+pub static mut TIMER_INTERRUPT_STACK: AlignedStack = AlignedStack::new();
+pub static mut PAGE_FAULT_STACK: AlignedStack = AlignedStack::new();
+pub static mut GENERAL_FAULT_STACK: AlignedStack = AlignedStack::new();
 
 lazy_static! {
     static ref TSS: TaskStateSegment = {
         let mut tss = TaskStateSegment::new();
         tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX] = {
             let stackStart = VirtAddr::from_ptr(&raw const DOUBLE_FAULT_STACK);
+            let stackEnd = stackStart + STACK_SIZE as u64;
+            stackEnd
+        };
+        tss.interrupt_stack_table[TIMER_INTERRUPT_IST_INDEX] = {
+            let stackStart = VirtAddr::from_ptr(&raw const TIMER_INTERRUPT_STACK);
             let stackEnd = stackStart + STACK_SIZE as u64;
             stackEnd
         };

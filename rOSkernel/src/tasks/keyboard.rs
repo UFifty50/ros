@@ -106,8 +106,6 @@ pub async fn printKeypresses() {
                 };
             }
 
-            log::info!("code: {:?}", keyEvent.code);
-
             if let Some(key) = keyboard.process_keyevent(keyEvent) {
                 match key {
                     DecodedKey::Unicode(character) => log::info!("{}", character),
@@ -120,16 +118,24 @@ pub async fn printKeypresses() {
 
 pub fn keyboardInitialize() -> Result<(), ControllerError> {
     let mut controller = CONTROLLER.lock();
-
+    log::info!("controller: {:#?}", controller);
     // Step 3: Disable devices
     controller.disable_keyboard()?;
-    //  controller.disable_mouse()?;
+    log::info!("keyboard disabled");
+    controller.disable_mouse()?;
 
     // Step 4: Flush data buffer
-    let _ = controller.read_data();
+    loop {
+        match controller.read_data() {
+            Ok(_) => {}
+            Err(ControllerError::Timeout) => break,
+            Err(e) => return Err(e)
+        }
+    }
 
     // Step 5: Set config
     let mut config = controller.read_config()?;
+    log::info!("old config: {:#?}", config);
     // Disable interrupts and scancode translation
     config.set(
         ControllerConfigFlags::ENABLE_KEYBOARD_INTERRUPT
@@ -138,9 +144,11 @@ pub fn keyboardInitialize() -> Result<(), ControllerError> {
         false,
     );
     controller.write_config(config)?;
+    log::info!("new config: {:#?}", controller.read_config()?);
 
     // Step 6: Controller self-test
     controller.test_controller()?;
+    log::info!("controller tested");
     // Write config again in case of controller reset
     controller.write_config(config)?;
 
@@ -153,38 +161,32 @@ pub fn keyboardInitialize() -> Result<(), ControllerError> {
     //   } else {
     //     false
     //   };
-    // Disable mouse. If there's no mouse, this is ignored
-    controller.disable_mouse()?;
 
     // Step 8: Interface tests
-    let keyboard_works = controller.test_keyboard().is_ok();
+    controller.test_keyboard()?;
     //   let mouse_works = has_mouse && controller.test_mouse().is_ok();
 
-    // Step 9 - 10: Enable and reset devices
-    config = controller.read_config()?;
-    if keyboard_works {
-        controller.enable_keyboard()?;
-        config.set(ControllerConfigFlags::DISABLE_KEYBOARD, false);
-        config.set(ControllerConfigFlags::ENABLE_KEYBOARD_INTERRUPT, true);
-        //   let x = controller.keyboard().reset_and_self_test();
-        //   print!("\nwe here {:#?}", x);
-    }
-    //   if mouse_works {
-    //       controller.enable_mouse()?;
-    //      config.set(ControllerConfigFlags::DISABLE_MOUSE, false);
-    //     config.set(ControllerConfigFlags::ENABLE_MOUSE_INTERRUPT, true);
-    //     controller.mouse().reset_and_self_test().unwrap();
-    // This will start streaming events from the mouse
-    //      controller.mouse().enable_data_reporting().unwrap();
-    //  }
-
-    // Write last configuration to enable devices and interrupts
-    controller.write_config(config)?;
+    controller.enable_keyboard()?;
+    controller.keyboard().reset_and_self_test().map_err(|_| ControllerError::TestFailed { response: 0 })?;
 
     let result = controller.keyboard().set_scancode_set(1);
     if let Err(result) = result {
         panic!("Error setting scancode set: {:?}", result);
     }
+
+    controller.keyboard().enable_scanning().map_err(|_| ControllerError::TestFailed { response: 1 })?;
+
+    // Step 9 - 10: Enable and reset devices
+    config = controller.read_config()?;
+    config.set(ControllerConfigFlags::ENABLE_KEYBOARD_INTERRUPT, true);
+    //       controller.enable_mouse()?;
+    //     config.set(ControllerConfigFlags::ENABLE_MOUSE_INTERRUPT, true);
+    //      controller.mouse().enable_data_reporting().unwrap();
+    //  }
+
+    // Write last configuration to enable devices and interrupts
+    controller.write_config(config)?;
+    log::info!("controller config written");
 
     log::info!("Controller initialized");
     Ok(())

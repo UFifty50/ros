@@ -7,25 +7,24 @@ pub mod binIO;
 pub mod framebuffer;
 pub mod kacpi;
 
-use crate::mem::allocator;
-use crate::mem::allocator::MultiHeapAllocator;
+use crate::mem::allocator::HeapRegionAllocator;
 use crate::mem::memory::BootInfoFrameAllocator;
+use crate::util::wrappers::XFeatures;
 use bootloader_x86_64_common::logger::LockedLogger;
 use core::fmt::Debug;
-use linked_list_allocator::{Heap, LockedHeap};
 use once_cell::sync::OnceCell;
 use spin::Mutex;
 use x86_64::structures::paging::OffsetPageTable;
+use crate::mem::heap::Heap;
 
-#[global_allocator]
-pub static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
+// See src/mem/mod.rs for #[global_allocator]
 
 static KERNEL_CONTEXT: OnceCell<KernelContext> = OnceCell::new();
 pub struct KernelContext {
     pub logger: OnceCell<LockedLogger>,
-    pub mapper: OnceCell<OffsetPageTable<'static>>,
-    pub frameAllocator: OnceCell<BootInfoFrameAllocator>,
-    pub heap_manager: OnceCell<Mutex<MultiHeapAllocator>>,
+    pub mapper: OnceCell<Mutex<OffsetPageTable<'static>>>,
+    pub frameAllocator: OnceCell<Mutex<BootInfoFrameAllocator>>,
+    pub heapRegionAllocator: OnceCell<Mutex<HeapRegionAllocator>>,
     pub frameBuffer: OnceCell<framebuffer::FrameBufferEditor>,
     pub apic: OnceCell<AdvancedPic::AdvancedPic>,
     pub constants: KernelConstants,
@@ -35,6 +34,7 @@ pub struct KernelContext {
 pub struct KernelConstants {
     pub ACPI_INTERRUPT_MODEL: OnceCell<acpi::InterruptModel<'static, Heap>>,
     pub ACPI_PROCESSOR_INFO: OnceCell<acpi::platform::ProcessorInfo<'static, Heap>>,
+    pub SUPPORTED_XFEATURES: OnceCell<XFeatures>,
 }
 
 pub fn initKernelContext() {
@@ -43,12 +43,13 @@ pub fn initKernelContext() {
             logger: OnceCell::new(),
             mapper: OnceCell::new(),
             frameAllocator: OnceCell::new(),
-            heap_manager: OnceCell::new(),
+            heapRegionAllocator: OnceCell::new(),
             frameBuffer: OnceCell::new(),
             apic: OnceCell::new(),
             constants: KernelConstants {
                 ACPI_INTERRUPT_MODEL: OnceCell::new(),
                 ACPI_PROCESSOR_INFO: OnceCell::new(),
+                SUPPORTED_XFEATURES: OnceCell::new(),
             },
         })
         .expect("Kernel Context already initialized, did you mean to get and set a resource?");
@@ -68,23 +69,23 @@ pub fn setKernelLogger(logger: LockedLogger) -> Option<&'static LockedLogger> {
     Some(kernelContext().logger.get().unwrap())
 }
 
-pub fn setKernelMapper(mapper: OffsetPageTable<'static>) {
+pub fn setKernelMapper(mapperMutex: Mutex<OffsetPageTable<'static>>) {
     kernelContext()
         .mapper
-        .set(mapper)
+        .set(mapperMutex)
         .expect("Memory Mapper already initialized");
 }
 
-pub fn setKernelFrameAllocator(frameAllocator: BootInfoFrameAllocator) {
+pub fn setKernelFrameAllocator(frameAllocatorMutex: Mutex<BootInfoFrameAllocator>) {
     kernelContext()
         .frameAllocator
-        .set(frameAllocator)
+        .set(frameAllocatorMutex)
         .expect("Frame Allocator already initialized");
 }
 
-pub fn setKernelHeapManager(heap_manager: MultiHeapAllocator) {
+pub fn setKernelHeapManager(heap_manager: HeapRegionAllocator) {
     kernelContext()
-        .heap_manager
+        .heapRegionAllocator
         .set(Mutex::new(heap_manager))
         .expect("Heap Manager already initialized");
 }
@@ -109,7 +110,7 @@ impl Debug for KernelContext {
             .field("logger", &"LockedLogger")
             .field("mapper", &self.mapper)
             .field("frameAllocator", &self.frameAllocator)
-            .field("heap_manager", &self.heap_manager)
+            .field("heap_manager", &self.heapRegionAllocator)
             .field("frameBuffer", &self.frameBuffer)
             .field("apic", &self.apic)
             .field("constants", &self.constants)

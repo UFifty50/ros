@@ -27,7 +27,7 @@ impl<T> OnceInit<T> {
     /// ```
     ///
     /// The returned guard implements `DerefMut` so you can modify the inner value.
-    pub fn get_or_init<F>(&self, f: F) -> OnceMutGuard<T>
+    pub fn get_or_init<F>(&self, f: F) -> OnceMutGuard<'_, T>
     where
         F: FnOnce() -> T,
     {
@@ -40,7 +40,7 @@ impl<T> OnceInit<T> {
 
     /// Get mutable access to the contained value.
     /// Returns `None` if not yet initialized.
-    pub fn get_mut(&self) -> Option<OnceMutGuard<T>> {
+    pub fn get_mut(&self) -> Option<OnceMutGuard<'_, T>> {
         let guard = self.inner.lock();
         // We only create a mutable guard if the value is actually initialized.
         if guard.is_some() {

@@ -1,9 +1,11 @@
 use core::ops::Add;
 
 use core::cmp::Ordering;
+use core::hint::spin_loop;
+use core::sync::atomic::Ordering as AtomicOrdering;
 use spin::Mutex;
-
 use crate::kernel::binIO;
+use crate::kernel::interrupts::TICK_COUNTER;
 
 static TIME: Mutex<Time> = Mutex::new(Time::new());
 static MONTHS: [u8; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -207,16 +209,17 @@ pub async fn waitSeconds(seconds: u32) {
     waitTicks(seconds * 20).await;
 }
 
-pub async fn waitTicks(_ticks: u32) {
-    // let now = TICK_COUNTER.load(AtomicOrdering::Relaxed);
-    // let target = now + ticks;
-    //
-    // loop {
-    //     let now = TICK_COUNTER.load(AtomicOrdering::Relaxed);
-    //     if now >= target {
-    //         break;
-    //     }
-    // }
+pub async fn waitTicks(ticks: u32) {
+    let now = TICK_COUNTER.load(AtomicOrdering::Relaxed);
+    let target = now + ticks;
+
+    loop {
+        let now = TICK_COUNTER.load(AtomicOrdering::Relaxed);
+        spin_loop();
+        if now >= target {
+            break;
+        }
+    }
 }
 
 unsafe fn updateInProgress() -> bool {
@@ -258,9 +261,16 @@ pub fn initRTC() {
     }
 }
 
-pub unsafe fn readRTC() {
-    TIME.lock().update();
-    let time = TIME.lock();
+pub unsafe fn handleInterrupt() {
+    let mut time = TIME.lock();
+
+    // Read Register C to clear pending interrupts
+    unsafe {
+        binIO::out8(0x70, 0x0C);
+        binIO::in8(0x71);
+    }
+
+    time.update();
 
     if time.second == time.prevSecond {
         return;
