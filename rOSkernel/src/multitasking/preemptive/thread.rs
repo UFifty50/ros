@@ -1,5 +1,5 @@
 use crate::mem::stack::{self, StackBounds};
-use crate::util::wrappers::{CPUID, XFeatures, xgetbv0, xsetbv0, get_fpu_mechanism, FpuSaveMechanism};
+use crate::util::wrappers::{XFeatures, xgetbv0, xsetbv0, get_fpu_mechanism, FpuSaveMechanism};
 use crate::multitasking::preemptive::{ProcessID, ThreadID};
 use alloc::collections::BTreeMap;
 use x86_64::VirtAddr;
@@ -11,8 +11,9 @@ use alloc::alloc::{alloc, dealloc, Layout};
 use crate::mem::memory::{newAddressSpace, PHYSICAL_MEMORY_OFFSET};
 use alloc::sync::Arc;
 use spin::Mutex;
+use cpuid::CPUID;
 
-type ProcessRef = Arc<Process>;
+pub type ProcessRef = Arc<Process>;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[repr(C)]
@@ -53,6 +54,14 @@ pub struct SegmentRegisters {
     pub gs: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThreadStatus {
+    Spawned,
+    Sleeping,
+    SleepingNoDisturb,
+    Waking, // foresight for multicore, prevents a task from being woken up twice
+    Dead,
+}
 
 #[derive(Debug)]
 #[repr(C)]
@@ -62,8 +71,8 @@ pub struct Thread {
     pub(super) maxQuantum: u64,
     pub(super) quantum: u64,
     pub(super) done: bool,
+    pub status: ThreadStatus,
     pub initialised: bool,
-    _padding1: [u8; 6],
     pub stackBounds: StackBounds,
 
     // registers
@@ -215,7 +224,7 @@ impl Process {
                 let size_ebx = x86_64::instructions::interrupts::without_interrupts(|| {
                     let current_xcr0 = xgetbv0();
                     xsetbv0(xFeatures.to_u64());
-                    let size = CPUID(0xD, 0).1;
+                    let size = CPUID::xsaveInfo().unwrap().currentMaxSaveArea;
                     xsetbv0(current_xcr0);
                     size
                 });
@@ -242,7 +251,7 @@ impl Process {
             quantum: maxQuantum,
             done: false,
             initialised: false,
-            _padding1: [0; 6],
+            status: ThreadStatus::Spawned,
             cr3: self.pageTable,
             gpRegisters: GPRegisters::default(),
             iFrame: InterruptFrame {
@@ -280,16 +289,14 @@ impl Process {
         })
     }
 
-    pub fn start_thread(&self, tid: ThreadID) -> Result<(), ()> {
+    pub fn start_thread(&self, tid: ThreadID) -> Option<()> {
         interrupts::without_interrupts(|| {
             if !self.threads.lock().contains_key(&tid) {
-                return Err(());
+                return None;
             }
 
             let mut guard = SCHEDULER.lock();
-            guard.schedule(self.pid, tid);
-
-            Ok(())
+            guard.schedule(self.pid, tid)
         })
     }
 

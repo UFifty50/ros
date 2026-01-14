@@ -70,7 +70,7 @@ impl FloppyCommands {
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 enum FloppyMotor {
-    ON,
+    ON = 5,
     OFF,
     WAITING,
 }

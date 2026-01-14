@@ -6,7 +6,6 @@ use crate::mem::memory;
 use acpi::InterruptModel;
 use acpi::platform::interrupt::Apic;
 use log::{error, info};
-use once_cell::sync::OnceCell;
 use x86_64::registers::model_specific::Msr;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, PhysFrame, Size4KiB};
 use x86_64::{PhysAddr, VirtAddr};

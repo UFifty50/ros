@@ -5,7 +5,7 @@ edition = "2024"
 default-run = "rust-OS"
 
 [workspace]
-members = ["constformat", "rOSkernel", "linked-list-allocator"]
+members = ["rOSkernel", "cpuid", "linked-list-allocator"]
 
 [dependencies]
 ovmf-prebuilt = "0.2.2"

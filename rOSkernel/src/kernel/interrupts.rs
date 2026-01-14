@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::AtomicU32;
 use lazy_static::lazy_static;
 // use pic8259::ChainedPics;
 use ps2::Controller;
@@ -162,7 +162,7 @@ extern "x86-interrupt" fn invalidTSSHandler(stackFrame: InterruptStackFrame, _er
     }
 }
 
-extern "x86-interrupt" fn pitHandler(stackFrame: InterruptStackFrame) {
+extern "x86-interrupt" fn pitHandler(_stackFrame: InterruptStackFrame) {
   //  log::trace!("PIT INTERRUPT");
 
     kernelContext()
@@ -172,7 +172,7 @@ extern "x86-interrupt" fn pitHandler(stackFrame: InterruptStackFrame) {
         .notifyEOI();
 }
 
-extern "x86-interrupt" fn spuriousInterruptHandler(stackFrame: InterruptStackFrame) {
+extern "x86-interrupt" fn spuriousInterruptHandler(_stackFrame: InterruptStackFrame) {
  //   log::error!("EXCEPTION: Spurious Interrupt\n{:#?}", stackFrame);
     loop {
         x86_64::instructions::hlt();

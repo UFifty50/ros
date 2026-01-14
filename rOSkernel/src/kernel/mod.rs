@@ -1,6 +1,7 @@
 pub mod gdt;
 pub mod interrupts;
 //pub mod vgaBuffer;
+pub mod timer;
 pub mod AdvancedPic;
 pub mod RTC;
 pub mod binIO;
@@ -27,6 +28,7 @@ pub struct KernelContext {
     pub heapRegionAllocator: OnceCell<Mutex<HeapRegionAllocator>>,
     pub frameBuffer: OnceCell<framebuffer::FrameBufferEditor>,
     pub apic: OnceCell<AdvancedPic::AdvancedPic>,
+    pub timerQueue: OnceCell<timer::TimerQueue>,
     pub constants: KernelConstants,
 }
 
@@ -46,6 +48,7 @@ pub fn initKernelContext() {
             heapRegionAllocator: OnceCell::new(),
             frameBuffer: OnceCell::new(),
             apic: OnceCell::new(),
+            timerQueue: OnceCell::new(),
             constants: KernelConstants {
                 ACPI_INTERRUPT_MODEL: OnceCell::new(),
                 ACPI_PROCESSOR_INFO: OnceCell::new(),
@@ -104,6 +107,13 @@ pub fn setKernelAPIC(apic: AdvancedPic::AdvancedPic) {
         .expect("APIC already initialized");
 }
 
+pub fn setKernelTimerQueue(timerQueue: timer::TimerQueue) {
+    kernelContext()
+        .timerQueue
+        .set(timerQueue)
+        .expect("Timer Queue already initialized");
+}
+
 impl Debug for KernelContext {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("KernelContext")
@@ -113,6 +123,7 @@ impl Debug for KernelContext {
             .field("heap_manager", &self.heapRegionAllocator)
             .field("frameBuffer", &self.frameBuffer)
             .field("apic", &self.apic)
+            .field("timerQueue", &self.timerQueue)
             .field("constants", &self.constants)
             .finish()
     }
